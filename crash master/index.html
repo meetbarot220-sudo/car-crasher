@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>90 SECOND SURVIVAL - 2D Arcade Driving Survival</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 2D Canvas -->
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Floating Damage Overlay -->
+        <div id="damage-numbers-layer"></div>
+
+        <!-- Polished 2D Arcade HUD -->
+        <div id="hud-overlay">
+            <div class="hud-top">
+                <!-- TOP LEFT: SCORE INTEGRITY CAPSULE -->
+                <div class="hud-capsule score-capsule" id="hud-score-capsule">
+                    <div class="capsule-header">
+                        <div class="badge-icon score-badge-icon">🛡️</div>
+                        <span class="capsule-title">SCORE</span>
+                        <span class="capsule-val score-main-val" id="hud-score-text">10,000</span>
+                    </div>
+                    <div class="score-bar-track">
+                        <div class="score-bar-fill healthy" id="hud-score-fill" style="width: 100%;">
+                            <div class="score-bar-shine"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOP CENTER: SURVIVAL TIMER -->
+                <div class="hud-capsule timer-capsule">
+                    <div class="badge-icon timer-badge-icon">⏱</div>
+                    <div class="timer-body">
+                        <span class="timer-label">SURVIVE</span>
+                        <span class="timer-value" id="hud-timer">90.0s</span>
+                    </div>
+                </div>
+
+                <!-- TOP RIGHT: PURSUIT HEAT STATUS -->
+                <div class="hud-capsule heat-capsule">
+                    <div class="badge-icon heat-badge-icon">🚨</div>
+                    <div class="heat-body">
+                        <span class="heat-label" id="hud-heat-label">HEAT: LOW</span>
+                        <div class="heat-stars" id="hud-heat-stars">★☆☆☆☆</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Desktop Control Hint (Hidden on touch devices) -->
+            <div class="hud-bottom">
+                <div class="controls-hint">
+                    Steer: <kbd>A</kbd> <kbd>D</kbd> | Brake / Reverse: <kbd>S</kbd> | Drift: <kbd>SPACE</kbd>
+                </div>
+            </div>
+
+            <!-- Live Radar Minimap -->
+            <div id="hud-minimap-container">
+                <div class="minimap-bezel">
+                    <canvas id="minimap-canvas" width="144" height="144"></canvas>
+                    <div class="minimap-label">RADAR</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3... 2... 1... GO! Countdown Overlay -->
+        <div id="countdown-screen">
+            <div class="countdown-number" id="countdown-val">3</div>
+        </div>
+
+        <!-- Mobile Touch Controls: Exactly 2 Big Buttons (LEFT & RIGHT) -->
+        <div id="mobile-controls">
+            <button class="touch-btn touch-main-btn touch-left-btn" id="btn-touch-left" aria-label="Steer Left">
+                <span class="touch-arrow">◄</span>
+                <span class="touch-label">LEFT</span>
+            </button>
+            <div class="mobile-hint">HOLD BOTH TO REVERSE</div>
+            <button class="touch-btn touch-main-btn touch-right-btn" id="btn-touch-right" aria-label="Steer Right">
+                <span class="touch-arrow">►</span>
+                <span class="touch-label">RIGHT</span>
+            </button>
+        </div>
+
+        <!-- Clean Arcade Result Screen (No retry buttons, clean stats) -->
+        <div id="result-screen" class="overlay-screen hidden">
+            <div class="modal-box result-modal">
+                <h2 class="result-title" id="result-header">SURVIVED!</h2>
+                
+                <div class="result-highlight-card">
+                    <div class="highlight-row">
+                        <span class="hl-label">SURVIVAL TIME:</span>
+                        <span class="hl-val" id="res-time">90.0s</span>
+                    </div>
+                    <div class="highlight-row">
+                        <span class="hl-label">FINAL SCORE:</span>
+                        <span class="hl-val hl-score" id="res-score">10,000</span>
+                    </div>
+                </div>
+
+                <div class="stats-mini-grid">
+                    <div class="mini-stat-item">
+                        <span class="mini-stat-label">SCORE LOST</span>
+                        <span class="mini-stat-val" id="res-damage">0</span>
+                    </div>
+                    <div class="mini-stat-item">
+                        <span class="mini-stat-label">COLLISIONS</span>
+                        <span class="mini-stat-val" id="res-collisions">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js 3D WebGL Engine -->
+    <script src="assets/three.min.js"></script>
+    <!-- Standalone Game Engine -->
+    <script src="game.js"></script>
+</body>
+</html>
