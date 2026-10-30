@@ -17,22 +17,24 @@
         <!-- Polished 2D Arcade HUD -->
         <div id="hud-overlay">
             <div class="hud-top">
-                <!-- TOP LEFT: SCORE INTEGRITY CAPSULE -->
-                <div class="hud-capsule score-capsule" id="hud-score-capsule">
-                    <div class="capsule-header">
-                        <div class="badge-icon score-badge-icon">🛡️</div>
-                        <span class="capsule-title">SCORE</span>
-                        <span class="capsule-val score-main-val" id="hud-score-text">10,000</span>
-                    </div>
-                    <div class="score-bar-track">
-                        <div class="score-bar-fill healthy" id="hud-score-fill" style="width: 100%;">
-                            <div class="score-bar-shine"></div>
+                <!-- TOP LEFT: SCORE -->
+                <div class="hud-left-group">
+                    <div class="hud-capsule score-capsule" id="hud-score-capsule">
+                        <div class="capsule-header">
+                            <div class="badge-icon score-badge-icon">🛡️</div>
+                            <span class="capsule-title">SCORE</span>
+                            <span class="capsule-val score-main-val" id="hud-score-text">10,000</span>
+                        </div>
+                        <div class="score-bar-track">
+                            <div class="score-bar-fill healthy" id="hud-score-fill" style="width: 100%;">
+                                <div class="score-bar-shine"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- TOP CENTER: SURVIVAL TIMER -->
-                <div class="hud-capsule timer-capsule">
+                <div class="hud-capsule timer-capsule" id="hud-timer-capsule">
                     <div class="badge-icon timer-badge-icon">⏱</div>
                     <div class="timer-body">
                         <span class="timer-label">SURVIVE</span>
@@ -40,11 +42,11 @@
                     </div>
                 </div>
 
-                <!-- TOP RIGHT: PURSUIT HEAT STATUS -->
-                <div class="hud-capsule heat-capsule">
+                <!-- TOP RIGHT: HEATWAVE STATUS -->
+                <div class="hud-capsule heat-capsule" id="hud-heat-capsule">
                     <div class="badge-icon heat-badge-icon">🚨</div>
                     <div class="heat-body">
-                        <span class="heat-label" id="hud-heat-label">HEAT: LOW</span>
+                        <span class="heat-label" id="hud-heat-label">HEATWAVE: LOW</span>
                         <div class="heat-stars" id="hud-heat-stars">★☆☆☆☆</div>
                     </div>
                 </div>
@@ -53,14 +55,18 @@
             <!-- Bottom Desktop Control Hint (Hidden on touch devices) -->
             <div class="hud-bottom">
                 <div class="controls-hint">
-                    Steer: <kbd>A</kbd> <kbd>D</kbd> | Brake / Reverse: <kbd>S</kbd> | Drift: <kbd>SPACE</kbd>
+                    Steer: <kbd>A</kbd> <kbd>D</kbd> | Brake / Reverse: <kbd>S</kbd>
                 </div>
             </div>
         </div>
 
-        <!-- 3... 2... 1... GO! Countdown Overlay -->
-        <div id="countdown-screen">
-            <div class="countdown-number" id="countdown-val">3</div>
+        <!-- TAP TO PLAY Full-Screen Start Overlay -->
+        <div id="start-screen" class="overlay-screen">
+            <div class="tap-to-play-container">
+                <div class="tap-icon">🏎️</div>
+                <div class="tap-main-text">TAP TO PLAY</div>
+                <div class="tap-sub-text">SURVIVE 90 SECONDS</div>
+            </div>
         </div>
 
         <!-- Mobile Touch Controls: Exactly 2 Big Buttons (LEFT & RIGHT) -->

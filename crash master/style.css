@@ -274,6 +274,13 @@ canvas#game-canvas {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
+.hud-left-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
 /* TOP CENTER: 3D SURVIVAL TIMER CAPSULE */
 .timer-capsule {
     min-width: 175px;
@@ -378,48 +385,82 @@ canvas#game-canvas {
 }
 
 /* ========================================================
-   COUNTDOWN OVERLAY (3... 2... 1... GO!)
+   TAP TO PLAY FULL-SCREEN START OVERLAY
    ======================================================== */
-#countdown-screen {
+#start-screen {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
-    z-index: 20;
+    z-index: 50;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(11, 14, 20, 0.35);
-    backdrop-filter: blur(4px);
-    transition: opacity 0.35s ease;
+    background: radial-gradient(circle at center, rgba(15, 23, 42, 0.75) 0%, rgba(9, 14, 26, 0.94) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
-#countdown-screen.hidden {
+#start-screen.hidden {
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
 }
 
-.countdown-number {
+.tap-to-play-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 14px;
+    padding: 28px;
+    animation: tapPulse 1.8s ease-in-out infinite alternate;
+}
+
+.tap-icon {
+    font-size: 58px;
+    filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.65));
+    animation: carFloat 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes carFloat {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+}
+
+.tap-main-text {
     font-family: 'Chakra Petch', sans-serif;
-    font-size: 130px;
+    font-size: 40px;
     font-weight: 700;
-    color: #facc15;
-    text-shadow: 0 0 40px rgba(250, 204, 21, 0.8), 0 8px 16px rgba(0, 0, 0, 0.9);
-    animation: countPulse 0.9s cubic-bezier(0.18, 0.89, 0.32, 1.28) infinite;
+    letter-spacing: 3px;
+    color: #ffffff;
+    text-shadow: 0 0 24px rgba(56, 189, 248, 0.85), 0 4px 8px rgba(0, 0, 0, 0.9);
 }
 
-.countdown-number.go {
-    color: #22c55e;
-    text-shadow: 0 0 50px rgba(34, 197, 94, 0.9), 0 8px 16px rgba(0, 0, 0, 0.9);
+.tap-sub-text {
+    font-family: 'Chakra Petch', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    color: #38bdf8;
+    text-transform: uppercase;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    padding: 6px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 
-@keyframes countPulse {
-    0% { transform: scale(0.65); opacity: 0; }
-    30% { transform: scale(1.15); opacity: 1; }
-    80% { transform: scale(1.0); opacity: 1; }
-    100% { transform: scale(0.9); opacity: 0.85; }
+@keyframes tapPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.04); }
 }
 
 /* ========================================================
@@ -444,6 +485,112 @@ canvas#game-canvas {
     }
     .hud-bottom {
         display: none;
+    }
+
+    #hud-overlay {
+        padding: calc(8px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+    }
+
+    .hud-top {
+        gap: 6px;
+        align-items: stretch;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    /* TOP LEFT: Score */
+    .hud-left-group {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 33%;
+        display: flex;
+        align-items: stretch;
+    }
+
+    .hud-capsule.score-capsule {
+        min-width: 0 !important;
+        width: 100%;
+        padding: 5px 8px;
+        border-radius: 10px;
+        gap: 3px;
+    }
+
+    .score-capsule .badge-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 11px;
+        margin-right: 5px;
+    }
+
+    .score-capsule .capsule-title {
+        font-size: 10px;
+        letter-spacing: 1px;
+    }
+
+    .score-capsule .score-main-val {
+        font-size: 14px;
+        letter-spacing: 0.5px;
+    }
+
+    .score-bar-track {
+        height: 4px;
+        border-radius: 2px;
+    }
+
+    /* TOP CENTER: Large prominent TIMER */
+    .hud-capsule.timer-capsule {
+        flex: 1 1 0;
+        min-width: 0 !important;
+        max-width: 35%;
+        padding: 6px 8px;
+        border-radius: 10px;
+        justify-content: center;
+    }
+
+    .timer-capsule .badge-icon {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+        margin-right: 6px;
+    }
+
+    .timer-label {
+        font-size: 9px;
+        letter-spacing: 1.2px;
+    }
+
+    .timer-value {
+        font-size: 20px;
+        letter-spacing: 0.5px;
+    }
+
+    /* TOP RIGHT: HEATWAVE status/indicator */
+    .hud-capsule.heat-capsule {
+        flex: 1 1 0;
+        min-width: 0 !important;
+        max-width: 33%;
+        padding: 6px 8px;
+        border-radius: 10px;
+        justify-content: center;
+    }
+
+    .heat-capsule .badge-icon {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+        margin-right: 6px;
+    }
+
+    .heat-label {
+        font-size: 10px;
+        letter-spacing: 0.8px;
+        white-space: nowrap;
+    }
+
+    .heat-stars {
+        font-size: 11px;
+        letter-spacing: 1px;
+        line-height: 1.1;
     }
 }
 

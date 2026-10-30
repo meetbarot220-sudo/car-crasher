@@ -63,11 +63,11 @@
 
     // Progressive Pursuit Heat Tiers across 90s (Smooth 0-20-40-60-75s progression, +10% difficulty & increased traffic)
     const INTENSITY_TIERS = [
-        { time: 0,  maxPolice: 1, maxTraffic: 11, policeSpeed: 330, heatLabel: 'HEAT: LOW',       heatStars: '★☆☆☆☆' },
-        { time: 20, maxPolice: 2, maxTraffic: 14, policeSpeed: 350, heatLabel: 'HEAT: MODERATE',  heatStars: '★★☆☆☆' },
-        { time: 40, maxPolice: 3, maxTraffic: 15, policeSpeed: 368, heatLabel: 'HEAT: STRONGER',  heatStars: '★★★☆☆' },
-        { time: 60, maxPolice: 3, maxTraffic: 16, policeSpeed: 382, heatLabel: 'HEAT: HIGH',      heatStars: '★★★★☆' },
-        { time: 75, maxPolice: 4, maxTraffic: 18, policeSpeed: 395, heatLabel: 'HEAT: VERY HIGH', heatStars: '★★★★★' }
+        { time: 0,  maxPolice: 1, maxTraffic: 11, policeSpeed: 330, heatLabel: 'HEATWAVE: LOW',       heatStars: '★☆☆☆☆' },
+        { time: 20, maxPolice: 2, maxTraffic: 14, policeSpeed: 350, heatLabel: 'HEATWAVE: MODERATE',  heatStars: '★★☆☆☆' },
+        { time: 40, maxPolice: 3, maxTraffic: 15, policeSpeed: 368, heatLabel: 'HEATWAVE: STRONGER',  heatStars: '★★★☆☆' },
+        { time: 60, maxPolice: 3, maxTraffic: 16, policeSpeed: 382, heatLabel: 'HEATWAVE: HIGH',      heatStars: '★★★★☆' },
+        { time: 75, maxPolice: 4, maxTraffic: 18, policeSpeed: 395, heatLabel: 'HEATWAVE: VERY HIGH', heatStars: '★★★★★' }
     ];
 
     // Rich Architectural Building Palettes
@@ -91,21 +91,27 @@
             this.sirenOsc = null;
             this.sirenGain = null;
             this.muted = false;
+            this.activeNodes = new Set();
         }
 
         init() {
-            if (this.initialized) return;
+            if (this.initialized) {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                return;
+            }
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 if (!AudioCtx) return;
                 this.ctx = new AudioCtx();
 
-                // Engine drone
+                // Engine drone (starts silent at gain 0 until gameplay starts)
                 this.engineOsc = this.ctx.createOscillator();
                 this.engineGain = this.ctx.createGain();
                 this.engineOsc.type = 'sawtooth';
                 this.engineOsc.frequency.setValueAtTime(55, this.ctx.currentTime);
-                this.engineGain.gain.setValueAtTime(0.035, this.ctx.currentTime);
+                this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
 
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
@@ -116,7 +122,7 @@
                 this.engineGain.connect(this.ctx.destination);
                 this.engineOsc.start();
 
-                // Police siren synth (starts muted)
+                // Police siren synth (starts muted at gain 0)
                 this.sirenOsc = this.ctx.createOscillator();
                 this.sirenGain = this.ctx.createGain();
                 this.sirenOsc.type = 'sine';
@@ -127,34 +133,122 @@
                 this.sirenOsc.start();
 
                 this.initialized = true;
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
             } catch (e) {
                 console.warn('AudioContext init error', e);
             }
         }
 
+        unlock() {
+            this.init();
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(() => {});
+            }
+        }
+
+        startGameplayAudio() {
+            if (!this.initialized || this.muted || !this.ctx) return;
+            try {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                const now = this.ctx.currentTime;
+                if (this.engineGain) {
+                    this.engineGain.gain.cancelScheduledValues(now);
+                    this.engineGain.gain.setValueAtTime(0.035, now);
+                }
+                if (this.engineOsc) {
+                    this.engineOsc.frequency.cancelScheduledValues(now);
+                    this.engineOsc.frequency.setValueAtTime(55, now);
+                }
+                if (this.sirenGain) {
+                    this.sirenGain.gain.cancelScheduledValues(now);
+                    this.sirenGain.gain.setValueAtTime(0, now);
+                }
+            } catch (e) {}
+        }
+
+        stopAllGameplaySounds() {
+            if (!this.initialized || !this.ctx) return;
+            try {
+                const now = this.ctx.currentTime;
+                // Immediately silence engine
+                if (this.engineGain) {
+                    this.engineGain.gain.cancelScheduledValues(now);
+                    this.engineGain.gain.setValueAtTime(0, now);
+                }
+                // Immediately silence siren / beeps
+                if (this.sirenGain) {
+                    this.sirenGain.gain.cancelScheduledValues(now);
+                    this.sirenGain.gain.setValueAtTime(0, now);
+                }
+                // Stop & disconnect any temporary active nodes
+                for (const node of this.activeNodes) {
+                    try {
+                        if (node.stop) node.stop();
+                        if (node.disconnect) node.disconnect();
+                    } catch (e) {}
+                }
+                this.activeNodes.clear();
+            } catch (e) {}
+        }
+
+        reset() {
+            this.stopAllGameplaySounds();
+        }
+
+        playCoinSound() {
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
+            try {
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, now);
+                osc.frequency.setValueAtTime(1318.51, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                this.activeNodes.add(osc);
+                osc.onended = () => this.activeNodes.delete(osc);
+                osc.start(now);
+                osc.stop(now + 0.26);
+            } catch (e) {}
+        }
+
         updateEngine(speedFraction) {
-            if (!this.initialized || this.muted) return;
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
             const now = this.ctx.currentTime;
             const freq = 45 + Math.min(speedFraction, 1.2) * 90;
-            this.engineOsc.frequency.setTargetAtTime(freq, now, 0.08);
-            this.engineGain.gain.setTargetAtTime(0.025 + Math.min(speedFraction, 1.0) * 0.035, now, 0.08);
+            if (this.engineOsc) {
+                this.engineOsc.frequency.setTargetAtTime(freq, now, 0.08);
+            }
+            if (this.engineGain) {
+                this.engineGain.gain.setTargetAtTime(0.025 + Math.min(speedFraction, 1.0) * 0.035, now, 0.08);
+            }
         }
 
         updateSiren(closestPoliceDistance) {
-            if (!this.initialized || this.muted) return;
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
             const now = this.ctx.currentTime;
             if (closestPoliceDistance < 600) {
                 const vol = Math.max(0, 1 - (closestPoliceDistance / 600)) * 0.07;
                 const freq = 600 + Math.sin(now * 7) * 220;
-                this.sirenOsc.frequency.setValueAtTime(freq, now);
-                this.sirenGain.gain.setTargetAtTime(vol, now, 0.1);
+                if (this.sirenOsc) this.sirenOsc.frequency.setValueAtTime(freq, now);
+                if (this.sirenGain) this.sirenGain.gain.setTargetAtTime(vol, now, 0.1);
             } else {
-                this.sirenGain.gain.setTargetAtTime(0, now, 0.2);
+                if (this.sirenGain) this.sirenGain.gain.setTargetAtTime(0, now, 0.2);
             }
         }
 
         playCountdownBeep(isGo) {
-            if (!this.initialized || this.muted) return;
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
             try {
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
@@ -170,7 +264,7 @@
         }
 
         playRampJump() {
-            if (!this.initialized || this.muted) return;
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
             try {
                 const now = this.ctx.currentTime;
                 const osc = this.ctx.createOscillator();
@@ -188,7 +282,7 @@
         }
 
         playCrashSound(severity) {
-            if (!this.initialized || this.muted) return;
+            if (!this.initialized || this.muted || gameState !== 'PLAYING' || !this.ctx) return;
             try {
                 const now = this.ctx.currentTime;
                 const bufferSize = Math.floor(this.ctx.sampleRate * 0.28);
@@ -211,25 +305,66 @@
                 noise.connect(filter);
                 filter.connect(gain);
                 gain.connect(this.ctx.destination);
+                this.activeNodes.add(noise);
+                noise.onended = () => this.activeNodes.delete(noise);
                 noise.start();
             } catch (e) {}
         }
 
-        playTireScreech() {
-            if (!this.initialized || this.muted) return;
+        playGameOverBlast() {
+            if (!this.initialized || this.muted || !this.ctx) return;
             try {
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => {});
+                }
                 const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(900 + Math.random() * 200, now);
-                gain.gain.setValueAtTime(0.05, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(now + 0.13);
-            } catch (e) {}
+
+                // 1. Heavy explosion noise blast (decaying shaped white noise through swept lowpass)
+                const blastDuration = 1.1;
+                const bufferSize = Math.floor(this.ctx.sampleRate * blastDuration);
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(450, now);
+                filter.frequency.exponentialRampToValueAtTime(40, now + blastDuration);
+
+                const noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.65, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + blastDuration);
+
+                noise.connect(filter);
+                filter.connect(noiseGain);
+                noiseGain.connect(this.ctx.destination);
+
+                noise.start(now);
+                noise.stop(now + blastDuration);
+
+                // 2. Deep sub-bass punch oscillator (downward 130Hz -> 28Hz sweep)
+                const subOsc = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                subOsc.type = 'sine';
+                subOsc.frequency.setValueAtTime(130, now);
+                subOsc.frequency.exponentialRampToValueAtTime(28, now + 0.65);
+
+                subGain.gain.setValueAtTime(0.70, now);
+                subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.70);
+
+                subOsc.connect(subGain);
+                subGain.connect(this.ctx.destination);
+
+                subOsc.start(now);
+                subOsc.stop(now + 0.72);
+            } catch (e) {
+                console.warn('Game over blast audio error:', e);
+            }
         }
     }
 
@@ -242,8 +377,7 @@
                 forward: false,
                 backward: false,
                 left: false,
-                right: false,
-                drift: false
+                right: false
             };
             this.touchState = {
                 left: false,
@@ -253,8 +387,7 @@
                 forward: false,
                 backward: false,
                 left: false,
-                right: false,
-                drift: false
+                right: false
             };
             this.locked = false;
             this.initListeners();
@@ -267,28 +400,24 @@
                 this.state.right = false;
                 this.state.backward = true;
                 this.state.forward = false;
-                this.state.drift = false;
             } else if (this.touchState.left) {
                 // MOBILE: LEFT only -> Steer Left
                 this.state.left = true;
                 this.state.right = false;
                 this.state.backward = false;
                 this.state.forward = true;
-                this.state.drift = false;
             } else if (this.touchState.right) {
                 // MOBILE: RIGHT only -> Steer Right
                 this.state.left = false;
                 this.state.right = true;
                 this.state.backward = false;
                 this.state.forward = true;
-                this.state.drift = false;
             } else {
-                // DESKTOP: Keyboard keys A/D/S/Space
+                // DESKTOP: Keyboard keys A/D/S (normal steering, no drift)
                 this.state.left = this.keyState.left;
                 this.state.right = this.keyState.right;
                 this.state.backward = this.keyState.backward;
                 this.state.forward = this.keyState.forward;
-                this.state.drift = this.keyState.drift;
             }
         }
 
@@ -358,9 +487,6 @@
                 case 'KeyD':
                 case 'ArrowRight':
                     this.keyState.right = isDown;
-                    break;
-                case 'Space':
-                    this.keyState.drift = isDown;
                     break;
             }
             this.updateEffectiveState();
@@ -1084,7 +1210,6 @@
             this.radius = 20;
 
             this.isAlive = true;
-            this.isDrifting = false;
             this.isAirborne = false;
             this.airborneTimer = 0;
             this.bodyRoll = 0;
@@ -1119,6 +1244,7 @@
 
             this.steerAngle = 0;
             this.score = CONFIG.STARTING_SCORE;
+            this.coins = 0;
             this.lastDamageTime = -999;
         }
 
@@ -1168,7 +1294,7 @@
                 }
             }
 
-            // Steering: A = Turn Left, D = Turn Right
+            // Steering: A = Turn Left, D = Turn Right (Pure normal steering, no drift)
             let steerDirection = 0;
             if (input.left) steerDirection -= 1;
             if (input.right) steerDirection += 1;
@@ -1178,20 +1304,7 @@
 
             if (Math.abs(this.speed) > 5 && steerDirection !== 0) {
                 const dirMultiplier = isReversing ? -1 : 1;
-                const turnMultiplier = input.drift ? 1.55 : 1.0;
-                this.heading += steerDirection * this.turnRate * dirMultiplier * turnMultiplier * dt;
-
-                if (input.drift || (Math.abs(this.speed) > 220 && Math.abs(steerDirection) > 0)) {
-                    this.isDrifting = true;
-                    if (Math.random() < 0.35 && !this.isAirborne) {
-                        world.addSkidmark(this.x, this.y, this.heading);
-                        if (sound) sound.playTireScreech();
-                    }
-                } else {
-                    this.isDrifting = false;
-                }
-            } else {
-                this.isDrifting = false;
+                this.heading += steerDirection * this.turnRate * dirMultiplier * dt;
             }
 
             this.updatePhysics(dt);
@@ -1503,8 +1616,7 @@
     let displayedScore = CONFIG.STARTING_SCORE;
     let totalDamageTaken = 0;
     let totalCollisions = 0;
-    let countdownTimer = 3.0;
-    let countdownStep = 3;
+    // countdown replaced by TAP TO PLAY
     let cameraShake = 0;
     let currentTier = INTENSITY_TIERS[0];
 
@@ -1692,9 +1804,27 @@
         }
     }
 
+    let gameOverSoundPlayed = false;
+
     function endGame(outcome) {
+        if (gameState !== 'PLAYING') return;
         gameState = outcome;
         input.locked = true;
+
+        // 1. Immediately stop ALL currently playing looping gameplay sounds
+        if (sound) {
+            sound.stopAllGameplaySounds();
+        }
+
+        // 2. Play exactly ONE single blast/explosion-style game-over sound
+        if (outcome === 'DESTROYED') {
+            if (!gameOverSoundPlayed) {
+                gameOverSoundPlayed = true;
+                if (sound) {
+                    sound.playGameOverBlast();
+                }
+            }
+        }
 
         const resultScreen = document.getElementById('result-screen');
         const header = document.getElementById('result-header');
@@ -1803,7 +1933,8 @@
                 p.y -= ny * overlap * 0.5;
 
                 const relSpeed = Math.hypot(player.vx - p.vx, player.vy - p.vy);
-                damagePlayer(340 + relSpeed * 0.95, (player.x + p.x) / 2, (player.y + p.y) / 2);
+                // Police collision damage reduced by exactly 50%
+                damagePlayer((340 + relSpeed * 0.95) * 0.5, (player.x + p.x) / 2, (player.y + p.y) / 2);
             }
         }
 
@@ -1897,12 +2028,18 @@
             this.scene.background = new THREE.Color(0x111625);
             this.scene.fog = new THREE.FogExp2(0x111625, 0.0055);
 
-            // 3. Low Grounded Third-Person Driving Camera (Mobile slightly zoomed out ~6.5% farther away)
+            // 3. Low Grounded Third-Person Driving Camera (Mobile ~80% wider arcade view, desktop unchanged)
             const isMobile = this.isMobileDevice();
-            const zoomMul = isMobile ? 1.065 : 1.0;
-            this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 500);
-            this.camLookAt = new THREE.Vector3(0, 0.95 * zoomMul, -19.0 * zoomMul);
-            this.camPos = new THREE.Vector3(0, 2.65 * zoomMul, 8.0 * zoomMul);
+            const fov = isMobile ? 70 : 58;
+            this.camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 0.2, 500);
+
+            const camDist = isMobile ? 11.2 : 8.0;
+            const camHeight = isMobile ? 3.65 : 2.65;
+            const lookAheadDist = isMobile ? 24.0 : 19.0;
+            const lookAtY = isMobile ? 1.15 : 0.95;
+
+            this.camLookAt = new THREE.Vector3(0, lookAtY, -lookAheadDist);
+            this.camPos = new THREE.Vector3(0, camHeight, camDist);
             this.camera.position.copy(this.camPos);
             this.camera.lookAt(this.camLookAt);
             this.camInitialized = false;
@@ -3112,20 +3249,21 @@
             const fx = Math.cos(player.heading);
             const fz = Math.sin(player.heading);
 
-            // True Third-Person Driving Camera (Desktop: 8.0/2.65/19.0, Mobile: ~6.5% farther away along perspective ray)
+            // True Grounded Third-Person Driving Camera
+            // Desktop: 8.0m distance, 2.65m height, 19.0m lookahead (~18.3° pitch)
+            // Mobile: 11.2m distance, 3.65m height, 24.0m lookahead (~18.0° pitch) + 70° FOV gives ~80% wider view
             const isMobile = this.isMobileDevice();
-            const zoomMul = isMobile ? 1.065 : 1.0;
-
-            const camDist = 8.0 * zoomMul;
-            const camHeight = 2.65 * zoomMul;
-            const lookAheadDist = 19.0 * zoomMul;
+            const camDist = isMobile ? 11.2 : 8.0;
+            const camHeight = isMobile ? 3.65 : 2.65;
+            const lookAheadDist = isMobile ? 24.0 : 19.0;
+            const lookAtY = isMobile ? 1.15 : 0.95;
 
             const targetCamX = px - fx * camDist;
             const targetCamY = py + camHeight;
             const targetCamZ = pz - fz * camDist;
 
             const targetLookX = px + fx * lookAheadDist;
-            const targetLookY = py + 0.95 * zoomMul;
+            const targetLookY = py + lookAtY;
             const targetLookZ = pz + fz * lookAheadDist;
 
             if (!this.camInitialized) {
@@ -3175,6 +3313,8 @@
         onResize(width, height) {
             this.renderer.setSize(width, height);
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            const isMobile = this.isMobileDevice();
+            this.camera.fov = isMobile ? 70 : 58;
             this.camera.aspect = width / height;
             this.camera.updateProjectionMatrix();
         }
@@ -3209,44 +3349,9 @@
         const dt = Math.min((timestamp - lastFrameTime) / 1000, 0.1);
         lastFrameTime = timestamp;
 
-        // --- 1. COUNTDOWN STATE (3 -> 2 -> 1 -> GO!) ---
-        if (gameState === 'COUNTDOWN') {
-            countdownTimer -= dt;
-            const countScreen = document.getElementById('countdown-screen');
-            const countVal = document.getElementById('countdown-val');
-
-            if (countdownTimer > 2.0) {
-                if (countdownStep !== 3) {
-                    countdownStep = 3;
-                    if (countVal) countVal.textContent = '3';
-                    if (sound) sound.playCountdownBeep(false);
-                }
-            } else if (countdownTimer > 1.0) {
-                if (countdownStep !== 2) {
-                    countdownStep = 2;
-                    if (countVal) countVal.textContent = '2';
-                    if (sound) sound.playCountdownBeep(false);
-                }
-            } else if (countdownTimer > 0.0) {
-                if (countdownStep !== 1) {
-                    countdownStep = 1;
-                    if (countVal) countVal.textContent = '1';
-                    if (sound) sound.playCountdownBeep(false);
-                }
-            } else if (countdownTimer > -0.6) {
-                if (countdownStep !== 0) {
-                    countdownStep = 0;
-                    if (countVal) {
-                        countVal.textContent = 'GO!';
-                        countVal.classList.add('go');
-                    }
-                    if (sound) sound.playCountdownBeep(true);
-                }
-            } else {
-                gameState = 'PLAYING';
-                input.locked = false;
-                if (countScreen) countScreen.classList.add('hidden');
-            }
+        // --- 1. READY STATE (WAIT FOR TAP TO PLAY) ---
+        if (gameState === 'READY') {
+            updateHUD();
         }
 
         // --- 2. PLAYING STATE ---
@@ -3301,7 +3406,7 @@
                 endGame('SURVIVED');
             }
 
-            if (sound) {
+            if (sound && gameState === 'PLAYING') {
                 sound.updateEngine(Math.abs(player.speed) / player.maxSpeed);
                 sound.updateSiren(closestPoliceDist);
             }
@@ -3355,14 +3460,115 @@
         }
         spawnVehicleOffScreen(true);
 
-        gameState = 'COUNTDOWN';
-        countdownTimer = 3.0;
-        countdownStep = 3;
+        gameState = 'READY';
+        runTimer = CONFIG.RUN_DURATION;
         input.locked = true;
+
+        const startOverlay = document.getElementById('start-screen');
+        if (startOverlay) {
+            const handleStart = (e) => {
+                if (e && e.cancelable && e.type !== 'click') e.preventDefault();
+                startGame();
+            };
+            startOverlay.addEventListener('pointerdown', handleStart);
+            startOverlay.addEventListener('touchstart', handleStart, { passive: false });
+            startOverlay.addEventListener('click', handleStart);
+        }
+
+        const resultOverlay = document.getElementById('result-screen');
+        if (resultOverlay) {
+            const handleRestart = (e) => {
+                if (e && e.cancelable && e.type !== 'click') e.preventDefault();
+                restartGame();
+            };
+            resultOverlay.addEventListener('pointerdown', handleRestart);
+            resultOverlay.addEventListener('touchstart', handleRestart, { passive: false });
+            resultOverlay.addEventListener('click', handleRestart);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (gameState === 'READY') {
+                startGame();
+            } else if (gameState === 'DESTROYED' || gameState === 'SURVIVED') {
+                if (e.code === 'Space' || e.code === 'Enter') {
+                    restartGame();
+                }
+            }
+        });
 
         updateHUD();
 
         requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+        if (gameState === 'PLAYING') return;
+
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) {
+            startScreen.classList.add('hidden');
+        }
+
+        // Reset game-over sound guard for this run
+        gameOverSoundPlayed = false;
+
+        if (sound) {
+            sound.unlock();
+            sound.startGameplayAudio();
+        }
+
+        gameState = 'PLAYING';
+        runTimer = CONFIG.RUN_DURATION;
+        input.locked = false;
+
+        updateHUD();
+    }
+
+    function restartGame() {
+        const resultScreen = document.getElementById('result-screen');
+        if (resultScreen) {
+            resultScreen.classList.add('hidden');
+        }
+
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen) {
+            startScreen.classList.remove('hidden');
+        }
+
+        // Reset audio state cleanly
+        gameOverSoundPlayed = false;
+        if (sound) {
+            sound.reset();
+        }
+
+        totalDamageTaken = 0;
+        totalCollisions = 0;
+        cameraShake = 0;
+        currentTier = INTENSITY_TIERS[0];
+        runTimer = CONFIG.RUN_DURATION;
+
+        player = new PlayerVehicle(22, 0);
+        displayedScore = player.score;
+
+        const runSeed = Math.floor(Math.random() * 1000000);
+        world = new ChunkManager(runSeed);
+        world.update(player.x, player.y, player.heading, player.speed);
+
+        policeCruisers.length = 0;
+        trafficCars.length = 0;
+        for (let i = 0; i < 11; i++) {
+            spawnVehicleOffScreen(false);
+        }
+        spawnVehicleOffScreen(true);
+
+        if (threeRenderer) {
+            threeRenderer.camInitialized = false;
+        }
+
+        gameState = 'READY';
+        input.locked = true;
+
+        updateHUD();
     }
 
     if (document.readyState === 'loading') {
@@ -3380,16 +3586,17 @@
         getGameState: () => gameState,
         getTimer: () => runTimer,
         getScore: () => player ? player.score : 0,
+        getCoins: () => player ? (player.coins || 0) : 0,
         getTier: () => currentTier,
         getRenderer: () => threeRenderer,
         getMinimap: () => null,
+        getSound: () => sound,
+        startGame: () => startGame(),
         startPlaying: () => {
-            countdownTimer = -1;
-            gameState = 'PLAYING';
-            input.locked = false;
-            const cs = document.getElementById('countdown-screen');
-            if (cs) cs.classList.add('hidden');
+            startGame();
         },
+        restartGame: () => restartGame(),
+        getGameOverSoundPlayed: () => gameOverSoundPlayed,
         endGame: (outcome) => endGame(outcome),
         CONFIG
     };
