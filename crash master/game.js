@@ -1494,7 +1494,6 @@
     let canvas, ctx;
     let threeRenderer;
     let sound, input, world, particles;
-    let minimap;
     let player;
     let policeCruisers = [];
     let trafficCars = [];
@@ -1898,10 +1897,12 @@
             this.scene.background = new THREE.Color(0x111625);
             this.scene.fog = new THREE.FogExp2(0x111625, 0.0055);
 
-            // 3. Low Grounded Third-Person Driving Camera (Subtly zoomed out ~5% for wider peripheral view)
+            // 3. Low Grounded Third-Person Driving Camera (Mobile slightly zoomed out ~6.5% farther away)
+            const isMobile = this.isMobileDevice();
+            const zoomMul = isMobile ? 1.065 : 1.0;
             this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.2, 500);
-            this.camLookAt = new THREE.Vector3(0, 0.95, -19.0);
-            this.camPos = new THREE.Vector3(0, 2.65, 8.0);
+            this.camLookAt = new THREE.Vector3(0, 0.95 * zoomMul, -19.0 * zoomMul);
+            this.camPos = new THREE.Vector3(0, 2.65 * zoomMul, 8.0 * zoomMul);
             this.camera.position.copy(this.camPos);
             this.camera.lookAt(this.camLookAt);
             this.camInitialized = false;
@@ -3111,17 +3112,20 @@
             const fx = Math.cos(player.heading);
             const fz = Math.sin(player.heading);
 
-            // True Third-Person Driving Camera (Zoomed out ~5%: camDist 7.6 -> 8.0, camHeight 2.5 -> 2.65, lookAhead 18.0 -> 19.0)
-            const camDist = 8.0;
-            const camHeight = 2.65;
-            const lookAheadDist = 19.0;
+            // True Third-Person Driving Camera (Desktop: 8.0/2.65/19.0, Mobile: ~6.5% farther away along perspective ray)
+            const isMobile = this.isMobileDevice();
+            const zoomMul = isMobile ? 1.065 : 1.0;
+
+            const camDist = 8.0 * zoomMul;
+            const camHeight = 2.65 * zoomMul;
+            const lookAheadDist = 19.0 * zoomMul;
 
             const targetCamX = px - fx * camDist;
             const targetCamY = py + camHeight;
             const targetCamZ = pz - fz * camDist;
 
             const targetLookX = px + fx * lookAheadDist;
-            const targetLookY = py + 0.95;
+            const targetLookY = py + 0.95 * zoomMul;
             const targetLookZ = pz + fz * lookAheadDist;
 
             if (!this.camInitialized) {
@@ -3184,264 +3188,15 @@
                 y: (-v.y * 0.5 + 0.5) * window.innerHeight
             };
         }
-    }
 
-    // =========================================================================
-    // SECTION 9.5: HIGH-PERFORMANCE 2D LIVE MINIMAP HUD RADAR
-    // =========================================================================
-    class MinimapRenderer {
-        constructor(canvas) {
-            this.canvas = canvas;
-            this.ctx = canvas ? canvas.getContext('2d') : null;
-            this.size = 144;
-            this.radius = 70;
-            this.worldRadius = 460; // 460px world coverage (~46m radius)
-            this.scale = this.radius / this.worldRadius;
-        }
-
-        render(player, world, police, traffic) {
-            if (!this.ctx || !player || !world) return;
-            const ctx = this.ctx;
-            const w = this.size;
-            const h = this.size;
-            const cx = w / 2;
-            const cy = h / 2 + 10; // offset slightly down so forward view is 65% of radar
-
-            ctx.clearRect(0, 0, w, h);
-
-            ctx.save();
-
-            // 1. Circular clipping mask
-            ctx.beginPath();
-            ctx.arc(w / 2, h / 2, this.radius - 2, 0, Math.PI * 2);
-            ctx.clip();
-
-            // Background
-            ctx.fillStyle = '#080c16';
-            ctx.fillRect(0, 0, w, h);
-
-            // Concentric range rings
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(cx, cy, this.radius * 0.45, 0, Math.PI * 2);
-            ctx.arc(cx, cy, this.radius * 0.85, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Crosshair lines
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
-            ctx.beginPath();
-            ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
-            ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-            ctx.stroke();
-
-            // Transform: Center on player, rotate so forward heading points UP (-PI/2)
-            ctx.translate(cx, cy);
-            ctx.rotate(-player.heading - Math.PI / 2);
-            ctx.scale(this.scale, this.scale);
-            ctx.translate(-player.x, -player.y);
-
-            // 2. Draw Road Segments from active chunks
-            const rw = CONFIG.ROAD_WIDTH; // 110px
-
-            for (let chunk of world.chunks.values()) {
-                const dx = chunk.midX - player.x;
-                const dy = chunk.midY - player.y;
-                if (Math.abs(dx) > this.worldRadius + CONFIG.CHUNK_SIZE / 2 ||
-                    Math.abs(dy) > this.worldRadius + CONFIG.CHUNK_SIZE / 2) {
-                    continue;
-                }
-
-                // Straight road segments
-                for (let r of chunk.roads) {
-                    const rx = r.x - (r.isVertical ? r.width / 2 : 0);
-                    const ry = r.y - (r.isVertical ? 0 : r.height / 2);
-
-                    // Road Bed
-                    ctx.fillStyle = '#1e2433';
-                    ctx.fillRect(rx, ry, r.width, r.height);
-
-                    // Road Curbs / Borders
-                    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
-                    ctx.lineWidth = 4;
-                    if (r.isVertical) {
-                        ctx.beginPath();
-                        ctx.moveTo(r.x - r.width / 2, r.y);
-                        ctx.lineTo(r.x - r.width / 2, r.y + r.height);
-                        ctx.moveTo(r.x + r.width / 2, r.y);
-                        ctx.lineTo(r.x + r.width / 2, r.y + r.height);
-                        ctx.stroke();
-                    } else {
-                        ctx.beginPath();
-                        ctx.moveTo(r.x, r.y - r.height / 2);
-                        ctx.lineTo(r.x + r.width, r.y - r.height / 2);
-                        ctx.moveTo(r.x, r.y + r.height / 2);
-                        ctx.lineTo(r.x + r.width, r.y + r.height / 2);
-                        ctx.stroke();
-                    }
-                }
-
-                // Curved road ribbons
-                if (chunk.curves) {
-                    for (let crv of chunk.curves) {
-                        const samples = crv.samples;
-                        if (!samples || samples.length < 2) continue;
-
-                        // Curved Road Bed
-                        ctx.strokeStyle = '#1e2433';
-                        ctx.lineWidth = rw;
-                        ctx.lineCap = 'butt';
-                        ctx.lineJoin = 'round';
-                        ctx.beginPath();
-                        ctx.moveTo(samples[0].x, samples[0].y);
-                        for (let i = 1; i < samples.length; i++) {
-                            ctx.lineTo(samples[i].x, samples[i].y);
-                        }
-                        ctx.stroke();
-
-                        // Outer Curbs / Borders
-                        const hrw = rw / 2;
-                        [-hrw, hrw].forEach(off => {
-                            ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
-                            ctx.lineWidth = 4;
-                            ctx.beginPath();
-                            ctx.moveTo(samples[0].x + samples[0].nx * off, samples[0].y + samples[0].ny * off);
-                            for (let i = 1; i < samples.length; i++) {
-                                ctx.lineTo(samples[i].x + samples[i].nx * off, samples[i].y + samples[i].ny * off);
-                            }
-                            ctx.stroke();
-                        });
-
-                        // Subtle dashed yellow centerline
-                        ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
-                        ctx.lineWidth = 3;
-                        ctx.setLineDash([12, 12]);
-                        ctx.beginPath();
-                        ctx.moveTo(samples[0].x, samples[0].y);
-                        for (let i = 1; i < samples.length; i++) {
-                            ctx.lineTo(samples[i].x, samples[i].y);
-                        }
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                    }
-                }
-
-                // Dead-End Terminators (Prominent Warning Indicator)
-                if (chunk.deadEnds) {
-                    for (let de of chunk.deadEnds) {
-                        ctx.save();
-                        ctx.translate(de.x, de.y);
-                        if (!de.isHoriz) ctx.rotate(Math.PI / 2);
-
-                        // Turnaround circle
-                        ctx.fillStyle = '#1e2433';
-                        ctx.beginPath();
-                        ctx.arc(0, 0, rw * 0.58, 0, Math.PI * 2);
-                        ctx.fill();
-
-                        // Glowing Red Barricade Indicator
-                        ctx.shadowColor = '#ef4444';
-                        ctx.shadowBlur = 14;
-                        ctx.fillStyle = '#ef4444';
-                        ctx.fillRect(-rw / 2, -7, rw, 14);
-
-                        // White Warning Hazard Stripes
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.lineWidth = 3;
-                        ctx.beginPath();
-                        ctx.moveTo(-28, -7); ctx.lineTo(-14, 7);
-                        ctx.moveTo(-10, -7); ctx.lineTo(4, 7);
-                        ctx.moveTo(8, -7); ctx.lineTo(22, 7);
-                        ctx.stroke();
-
-                        // Caution Marker 'X'
-                        ctx.fillStyle = '#ffffff';
-                        ctx.font = 'bold 12px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText('X', 0, 0);
-
-                        ctx.restore();
-                    }
-                }
-            }
-
-            // 3. Traffic Blips
-            if (traffic) {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                for (let t of traffic) {
-                    const dSq = (t.x - player.x) ** 2 + (t.y - player.y) ** 2;
-                    if (dSq < this.worldRadius * this.worldRadius) {
-                        ctx.beginPath();
-                        ctx.arc(t.x, t.y, 14, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            }
-
-            // 4. Police Cruisers Blips (Flashing Red/Blue)
-            if (police) {
-                const now = performance.now();
-                const isRed = Math.floor(now / 160) % 2 === 0;
-                ctx.fillStyle = isRed ? '#ef4444' : '#38bdf8';
-                ctx.shadowColor = ctx.fillStyle;
-                ctx.shadowBlur = 12;
-                for (let p of police) {
-                    const dSq = (p.x - player.x) ** 2 + (p.y - player.y) ** 2;
-                    if (dSq < this.worldRadius * this.worldRadius) {
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-                ctx.shadowBlur = 0;
-            }
-
-            ctx.restore();
-
-            // 5. Player Arrow at Center (Facing UP) with Vision Cone
-            ctx.save();
-            ctx.translate(cx, cy);
-
-            // Forward Vision Beam / Spotlight Cone
-            const coneGrad = ctx.createRadialGradient(0, 0, 4, 0, -32, 46);
-            coneGrad.addColorStop(0, 'rgba(56, 189, 248, 0.4)');
-            coneGrad.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
-            ctx.fillStyle = coneGrad;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.arc(0, 0, 46, -Math.PI / 2 - 0.42, -Math.PI / 2 + 0.42);
-            ctx.closePath();
-            ctx.fill();
-
-            // Cyan Player Sports Car Triangle
-            ctx.shadowColor = 'rgba(56, 189, 248, 0.95)';
-            ctx.shadowBlur = 10;
-            ctx.fillStyle = '#38bdf8';
-            ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(7, 8);
-            ctx.lineTo(0, 5);
-            ctx.lineTo(-7, 8);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.restore();
-
-            // 6. Compass North Indicator on Radar Bezel
-            ctx.save();
-            const northAngle = -player.heading - Math.PI;
-            const nx = w / 2 + Math.cos(northAngle) * (this.radius - 11);
-            const ny = h / 2 + Math.sin(northAngle) * (this.radius - 11);
-
-            ctx.fillStyle = '#ef4444';
-            ctx.font = 'bold 10px Chakra Petch, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(239, 68, 68, 0.8)';
-            ctx.shadowBlur = 6;
-            ctx.fillText('N', nx, ny);
-            ctx.restore();
+        isMobileDevice() {
+            if (typeof navigator === 'undefined') return false;
+            const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+            const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+            const hasTouch = (typeof window !== 'undefined') && (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+            const isCoarse = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(pointer: coarse)').matches : false;
+            const isNarrow = (typeof window !== 'undefined') && (window.innerWidth <= 900);
+            return isMobileUA || (hasTouch && (isNarrow || isCoarse));
         }
     }
 
@@ -3556,10 +3311,6 @@
             }
 
             updateHUD();
-
-            if (minimap) {
-                minimap.render(player, world, policeCruisers, trafficCars);
-            }
         }
 
         particles.update(dt);
@@ -3594,10 +3345,6 @@
         input = new InputManager();
         world = new ChunkManager(runSeed);
         particles = new ParticleSystem();
-        const minimapCanvas = document.getElementById('minimap-canvas');
-        if (minimapCanvas) {
-            minimap = new MinimapRenderer(minimapCanvas);
-        }
 
         player = new PlayerVehicle(22, 0); // Grounded in right-hand driving lane
 
@@ -3635,7 +3382,7 @@
         getScore: () => player ? player.score : 0,
         getTier: () => currentTier,
         getRenderer: () => threeRenderer,
-        getMinimap: () => minimap,
+        getMinimap: () => null,
         startPlaying: () => {
             countdownTimer = -1;
             gameState = 'PLAYING';
