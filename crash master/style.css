@@ -488,109 +488,196 @@ canvas#game-canvas {
     }
 
     #hud-overlay {
-        padding: calc(8px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+        padding: calc(6px + env(safe-area-inset-top, 0px)) calc(6px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(6px + env(safe-area-inset-left, 0px));
+        box-sizing: border-box;
     }
 
+    /* DEDICATED RESPONSIVE MOBILE HUD: SCORE | HEATWAVE | TIMER */
     .hud-top {
-        gap: 6px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr) minmax(0, 0.96fr);
         align-items: stretch;
-        justify-content: space-between;
         width: 100%;
+        gap: clamp(4px, 1.2vw, 8px);
+        box-sizing: border-box;
     }
 
-    /* TOP LEFT: Score */
+    /* Hide decorative badge icons on mobile to prioritize numbers & readability */
+    .hud-capsule .badge-icon {
+        display: none !important;
+    }
+
+    /* BASE MOBILE CAPSULE STYLES */
+    .hud-capsule {
+        min-width: 0 !important;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 4px clamp(4px, 1.2vw, 8px);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        overflow: hidden;
+    }
+
+    /* 1. SCORE (COLUMN 1 / LEFT) */
     .hud-left-group {
-        flex: 1 1 0;
+        order: 1;
+        grid-column: 1;
         min-width: 0;
-        max-width: 33%;
+        width: 100%;
         display: flex;
         align-items: stretch;
     }
 
     .hud-capsule.score-capsule {
-        min-width: 0 !important;
-        width: 100%;
-        padding: 5px 8px;
-        border-radius: 10px;
-        gap: 3px;
+        gap: 2px;
+        padding: 4px clamp(4px, 1.2vw, 8px);
     }
 
-    .score-capsule .badge-icon {
-        width: 20px;
-        height: 20px;
-        font-size: 11px;
-        margin-right: 5px;
+    .score-capsule .capsule-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 0;
+        padding: 0;
     }
 
     .score-capsule .capsule-title {
-        font-size: 10px;
-        letter-spacing: 1px;
-    }
-
-    .score-capsule .score-main-val {
-        font-size: 14px;
-        letter-spacing: 0.5px;
-    }
-
-    .score-bar-track {
-        height: 4px;
-        border-radius: 2px;
-    }
-
-    /* TOP CENTER: Large prominent TIMER */
-    .hud-capsule.timer-capsule {
-        flex: 1 1 0;
-        min-width: 0 !important;
-        max-width: 35%;
-        padding: 6px 8px;
-        border-radius: 10px;
-        justify-content: center;
-    }
-
-    .timer-capsule .badge-icon {
-        width: 22px;
-        height: 22px;
-        font-size: 12px;
-        margin-right: 6px;
-    }
-
-    .timer-label {
-        font-size: 9px;
-        letter-spacing: 1.2px;
-    }
-
-    .timer-value {
-        font-size: 20px;
-        letter-spacing: 0.5px;
-    }
-
-    /* TOP RIGHT: HEATWAVE status/indicator */
-    .hud-capsule.heat-capsule {
-        flex: 1 1 0;
-        min-width: 0 !important;
-        max-width: 33%;
-        padding: 6px 8px;
-        border-radius: 10px;
-        justify-content: center;
-    }
-
-    .heat-capsule .badge-icon {
-        width: 22px;
-        height: 22px;
-        font-size: 12px;
-        margin-right: 6px;
-    }
-
-    .heat-label {
-        font-size: 10px;
-        letter-spacing: 0.8px;
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(8px, 2.4vw, 10px);
+        font-weight: 700;
+        letter-spacing: clamp(0.5px, 0.2vw, 1px);
+        color: #94a3b8;
+        line-height: 1.1;
+        margin: 0;
+        text-transform: uppercase;
         white-space: nowrap;
     }
 
-    .heat-stars {
-        font-size: 11px;
-        letter-spacing: 1px;
+    .score-capsule .score-main-val {
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(12px, 3.8vw, 17px);
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 0.5px;
+        line-height: 1.15;
+        margin: 1px 0 2px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .score-bar-track {
+        width: 100%;
+        height: clamp(3px, 1vw, 4px);
+        border-radius: 2px;
+        margin-top: 1px;
+    }
+
+    /* 2. HEATWAVE (COLUMN 2 / CENTER) */
+    .hud-capsule.heat-capsule {
+        order: 2;
+        grid-column: 2;
+        gap: 2px;
+        padding: 4px clamp(4px, 1.2vw, 8px);
+    }
+
+    .heat-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    .heat-label {
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(8px, 2.3vw, 10.5px);
+        font-weight: 700;
+        letter-spacing: clamp(0.2px, 0.15vw, 0.8px);
+        color: #f87171;
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
         line-height: 1.1;
+    }
+
+    .heat-stars {
+        font-size: clamp(10px, 3.2vw, 14px);
+        color: #ef4444;
+        letter-spacing: clamp(0.5px, 0.3vw, 2px);
+        line-height: 1.15;
+        white-space: nowrap;
+        margin-top: 1px;
+        text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+    }
+
+    /* 3. TIMER (COLUMN 3 / RIGHT) */
+    .hud-capsule.timer-capsule {
+        order: 3;
+        grid-column: 3;
+        gap: 1px;
+        padding: 4px clamp(4px, 1.2vw, 8px);
+    }
+
+    .timer-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    .timer-label {
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(8px, 2.4vw, 10px);
+        font-weight: 700;
+        letter-spacing: clamp(0.5px, 0.2vw, 1px);
+        color: #94a3b8;
+        line-height: 1.1;
+        margin: 0;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .timer-value {
+        font-family: 'Chakra Petch', sans-serif;
+        font-size: clamp(13px, 4vw, 18px);
+        font-weight: 700;
+        color: #38bdf8;
+        letter-spacing: 0.5px;
+        line-height: 1.15;
+        margin: 1px 0 0 0;
+        white-space: nowrap;
+    }
+}
+
+/* LANDSCAPE MOBILE SAFE ENHANCEMENT */
+@media ((pointer: coarse) or (max-width: 900px)) and (orientation: landscape) {
+    #hud-overlay {
+        padding: calc(4px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
+    }
+
+    .hud-top {
+        max-width: 650px;
+        margin: 0 auto;
+        gap: 10px;
+    }
+
+    .hud-capsule {
+        padding: 4px 12px;
     }
 }
 
